@@ -27,6 +27,12 @@ export function App() {
   const [game, setGame] = usePersistentState<GameState>("bes-game", EMPTY_GAME);
   const [currentEvent, setCurrentEvent] = useState<MarketEventCard | null>(null);
 
+  // Hooks must run on every render, so keep this above the setup early-return.
+  const ranked = useMemo(
+    () => [...game.teams].sort((a, b) => teamTotal(b) - teamTotal(a)),
+    [game.teams]
+  );
+
   if (!game.started) {
     return <Setup onStart={(teams) => setGame({ ...EMPTY_GAME, teams, started: true })} />;
   }
@@ -79,10 +85,6 @@ export function App() {
     }
   }
 
-  const ranked = useMemo(
-    () => [...game.teams].sort((a, b) => teamTotal(b) - teamTotal(a)),
-    [game.teams]
-  );
   const rankById = new Map(ranked.map((t, i) => [t.id, i + 1]));
 
   const quarter = quarterOf(game.round);
@@ -97,9 +99,7 @@ export function App() {
           <span className="topbar__sub">Business Experience Simulator</span>
         </div>
         <div className="topbar__progress">
-          <div className="round-pill">
-            Month <strong>{game.round}</strong> / {TOTAL_ROUNDS}
-          </div>
+          <MonthTracker round={game.round} />
           <div className="round-pill round-pill--q">Quarter {quarter} / 4</div>
           {game.highDemandActive && (
             <div className="round-pill round-pill--hot">HIGH DEMAND ×2</div>
@@ -158,6 +158,29 @@ export function App() {
   );
 }
 
+function MonthTracker({ round }: { round: number }) {
+  const months = Array.from({ length: TOTAL_ROUNDS }, (_, i) => i + 1);
+  return (
+    <div className="tracker" aria-label={`Month ${round} of ${TOTAL_ROUNDS}`}>
+      {months.map((m) => {
+        const state = m < round ? "past" : m === round ? "now" : "future";
+        const quarterBreak = m % 3 === 1 && m !== 1;
+        return (
+          <span
+            key={m}
+            className={`tracker__dot tracker__dot--${state} ${
+              quarterBreak ? "tracker__dot--qbreak" : ""
+            }`}
+            title={`Month ${m}`}
+          >
+            {m}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function Leaderboard({ teams }: { teams: Team[] }) {
   const top = teams[0] ? teamTotal(teams[0]) : 0;
   return (
@@ -169,7 +192,9 @@ function Leaderboard({ teams }: { teams: Team[] }) {
           const pct = top > 0 ? (total / top) * 100 : 0;
           return (
             <li key={t.id} className="leaderboard__row">
-              <span className="leaderboard__rank">{i + 1}</span>
+              <span className={`leaderboard__rank leaderboard__rank--${i + 1}`}>
+                {i + 1}
+              </span>
               <span className="leaderboard__name">{t.name}</span>
               <span className="leaderboard__bar">
                 <span className="leaderboard__bar-fill" style={{ width: `${pct}%` }} />
